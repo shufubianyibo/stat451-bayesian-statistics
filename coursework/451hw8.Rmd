@@ -1,0 +1,230 @@
+---
+title: "451hw8"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(coda)
+```
+
+```{r}
+library(rstan)
+library(ggplot2)
+library(gridExtra)
+
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+
+set.seed(123)
+
+y <- c(0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,1,1,1,1,2,2,2,2,2,2,2,2,
+       2,1,5,2,5,3,2,7,7,3,3,2,9,10,4,4,4,4,4,4,4,10,4,4,4,5,
+       11,12,5,5,6,5,6,6,6,6,16,15,15,9,4)
+n <- c(20,20,20,20,20,19,19,19,19,18,17,20,20,20,20,19,19,18,18,25,24,
+       23,20,20,20,20,20,20,10,49,19,46,27,17,49,47,20,20,13,48,50,20,
+       20,20,20,19,19,22,46,49,20,20,20,40,48,19,20,23,19,22,20,20,20,
+       52,46,47,24,14)
+
+J <- length(y) 
+```
+
+
+# (1)
+
+```{r}
+stan_model_code <- "
+data {
+  int<lower=1> J;           
+  array[J] int<lower=0> y;  
+  array[J] int<lower=1> n;   
+}
+
+parameters {
+  real<lower=0> alpha;       
+  real<lower=0> beta;        
+  vector<lower=0,upper=1>[J] theta;  
+}
+
+model {
+  target += -2.5 * log(alpha + beta);
+
+  theta ~ beta(alpha, beta);
+
+  y ~ binomial(n, theta);
+}
+"
+stan_data <- list(J = J, y = y, n = n)
+
+fit <- stan(
+  model_code = stan_model_code,
+  data       = stan_data,
+  chains     = 4,
+  iter       = 4000,      
+  warmup     = 2000,
+  seed       = 42,
+  control    = list(adapt_delta   = 0.95,
+                    max_treedepth = 12)
+)
+
+print(fit, pars = c("alpha", "beta", "theta[68]"),
+      probs = c(0.025, 0.5, 0.975))
+
+check_hmc_diagnostics(fit)
+```
+
+# (2)
+```{r}
+posterior <- extract(fit)
+alpha_samp <- posterior$alpha
+beta_samp  <- posterior$beta
+theta_samp <- posterior$theta   # matrix: samples × 68
+
+E_alpha <- mean(alpha_samp)
+cat(sprintf("E(alpha | y)              = %.4f\n", E_alpha))
+cat(sprintf("Median(alpha | y)         = %.4f\n", median(alpha_samp)))
+cat(sprintf("95%% CI for alpha:  (%.4f, %.4f)\n",
+            quantile(alpha_samp, 0.025),
+            quantile(alpha_samp, 0.975)))
+
+mu_samp    <- alpha_samp / (alpha_samp + beta_samp)
+prob_lt02  <- mean(mu_samp < 0.2)
+cat(sprintf("\nPr(alpha/(alpha+beta) < 0.2 | y) = %.4f\n", prob_lt02))
+cat(sprintf("E(alpha/(alpha+beta) | y)         = %.4f\n", mean(mu_samp)))
+
+df_hyper <- data.frame(
+  alpha = alpha_samp,
+  beta  = beta_samp,
+  mu    = mu_samp
+)
+
+ggplot(df_hyper, aes(x=alpha)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60,
+                 fill="steelblue", alpha=0.7) +
+  geom_density(color="darkblue", linewidth=1) +
+  geom_vline(xintercept=E_alpha, color="red",
+             linetype="dashed", linewidth=0.8) +
+  annotate("text", x=E_alpha+0.2, y=0.3,
+           label=sprintf("E(alpha)=%.3f", E_alpha),
+           color="red", size=3.5) +
+  labs(title=sprintf("Posterior of alpha  |  E(alpha|y)=%.3f", E_alpha),
+       x="alpha", y="Density") +
+  theme_minimal()
+
+ggplot(df_hyper, aes(x=beta)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60,
+                 fill="tomato", alpha=0.7) +
+  geom_density(color="darkred", linewidth=1) +
+  geom_vline(xintercept=mean(beta_samp), color="red",
+             linetype="dashed", linewidth=0.8) +
+  labs(title=sprintf("Posterior of beta  |  E(beta|y)=%.3f",
+                     mean(beta_samp)),
+       x="beta", y="Density") +
+  theme_minimal()
+
+ggplot(df_hyper, aes(x=mu)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60,
+                 fill="purple", alpha=0.7) +
+  geom_density(color="darkviolet", linewidth=1) +
+  geom_vline(xintercept=0.2, color="orange",
+             linetype="dashed", linewidth=1) +
+  geom_vline(xintercept=mean(mu_samp), color="red",
+             linetype="dashed", linewidth=0.8) +
+  annotate("text", x=0.18, y=8,
+           label=sprintf("P(<0.2)=%.3f", prob_lt02),
+           color="orange", size=3.5, hjust=1) +
+  labs(title=sprintf("Posterior of alpha/(alpha+beta)  |  P(<0.2)=%.3f",
+                     prob_lt02),
+       x="alpha/(alpha+beta)", y="Density") +
+  theme_minimal()
+
+ggplot(df_hyper[1:2000,], aes(x=alpha, y=beta)) +
+  geom_point(alpha=0.15, size=0.5, color="steelblue") +
+  stat_density_2d(aes(color=after_stat(level)),
+                  bins=8, linewidth=0.6) +
+  scale_color_viridis_c(name="Density") +
+  labs(title="Joint Posterior (alpha, beta)",
+       x="alpha", y="beta") +
+  theme_minimal()
+
+
+```
+
+
+# (3)
+```{r}
+chain_list <- lapply(1:4, function(c) {
+  data.frame(
+    iter   = 1:2000,
+    chain  = paste0("Chain ", c),
+    alpha  = as.numeric(extract(fit, pars="alpha",
+                                permuted=FALSE)[,c,]),
+    beta   = as.numeric(extract(fit, pars="beta",
+                                permuted=FALSE)[,c,]),
+    theta68 = as.numeric(extract(fit, pars="theta[68]",
+                                 permuted=FALSE)[,c,])
+  )
+})
+df_chains <- do.call(rbind, chain_list)
+
+# Trace Plots
+p_tr_a <- ggplot(df_chains, aes(x=iter, y=alpha, color=chain)) +
+  geom_line(linewidth=0.3, alpha=0.8) +
+  labs(title="Trace Plot: alpha", x="Iteration", y="alpha",
+       color="") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+p_tr_b <- ggplot(df_chains, aes(x=iter, y=beta, color=chain)) +
+  geom_line(linewidth=0.3, alpha=0.8) +
+  labs(title="Trace Plot: beta", x="Iteration", y="beta",
+       color="") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+p_tr_t <- ggplot(df_chains, aes(x=iter, y=theta68, color=chain)) +
+  geom_line(linewidth=0.3, alpha=0.8) +
+  labs(title="Trace Plot: theta68", x="Iteration", y="theta68",
+       color="") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+# Posterior Density
+p_dn_a <- ggplot(df_chains, aes(x=alpha, color=chain)) +
+  geom_density(linewidth=0.8) +
+  labs(title="Posterior Density: alpha", x="alpha", y="Density",
+       color="") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+p_dn_b <- ggplot(df_chains, aes(x=beta, color=chain)) +
+  geom_density(linewidth=0.8) +
+  labs(title="Posterior Density: beta", x="beta", y="Density",
+       color="") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+p_dn_t <- ggplot(df_chains, aes(x=theta68, color=chain)) +
+  geom_density(linewidth=0.8) +
+  labs(title="Posterior Density: theta68", x="theta68", y="Density",
+       color="") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+grid.arrange(p_tr_a, p_dn_a, ncol=1,
+             top="Trace Plots, Posterior Densities: alpha")
+grid.arrange(p_tr_b, p_dn_b, ncol=1,
+             top="Trace Plots, Posterior Densities: beta")
+grid.arrange(p_tr_t, p_dn_t, ncol=1,
+             top="Trace Plots, Posterior Densities: theta68")
+```
+
+
+The actual data for the 68th control group showed that 4 out of 14 mice developed tumors, with a probability of approximately 28.6%. However, the overall average level of illness is only about 14.8% in the second problem. The posterior mean of the 68th group has been pulled to around 0.21. The estimated value of group 68 shrinked towards the overall mean of the historical group. The model consider information from 67 other experiments too, so the posterior distribution is a compromise between 28.6% and 14.8%.
+
+
+
+
+
+
+

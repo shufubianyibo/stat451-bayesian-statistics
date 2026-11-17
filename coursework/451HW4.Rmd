@@ -1,0 +1,118 @@
+---
+title: "451HW4"
+output: html_document
+---
+```{r}
+prior <- function(theta) {
+  if (theta < 0 || theta > 1) {
+    return(0) 
+  }
+  return( (cos(4 * pi * theta) + 1)^2 / 1.5 )
+}
+
+likelihood <- function(theta, data) {
+  if (length(data) == 0) {
+    return(1) 
+  }
+  z <- sum(data)       
+  N <- length(data)   
+  return( (theta^z) * ((1 - theta)^(N - z)) )
+}
+
+target <- function(theta, data) {
+  return( likelihood(theta, data) * prior(theta) )
+}
+```
+
+
+# (1)
+```{r}
+theta_values <- seq(0, 1, by = 0.001)
+prior_values <- sapply(theta_values, prior)
+plot(theta_values, prior_values, type = "l", lwd = 2,
+     main = "Prior Distribution of Theta",
+     xlab = expression(theta), ylab = "Density")
+```
+
+```{r}
+run_metropolis <- function(data, proposal_sd, init_theta, iter = 10000) {
+  chain <- numeric(iter)
+  chain[1] <- init_theta 
+  
+  for (i in 2:iter) {
+    current_theta <- chain[i-1]
+    proposed_theta <- rnorm(n = 1, mean = current_theta, sd = proposal_sd)
+    p_current <- target(current_theta, data)
+    p_proposed <- target(proposed_theta, data)
+    if (p_current == 0) {
+      accept_prob <- 1
+    } else {
+      accept_prob <- min(1, p_proposed / p_current)
+    }
+    
+    if (runif(1) < accept_prob) {
+      chain[i] <- proposed_theta 
+    } else {
+      chain[i] <- current_theta 
+    }
+  }
+  
+  return(chain)
+}
+```
+
+# (2)
+
+```{r}
+chain_q2 <- run_metropolis(data = c(), proposal_sd = 0.15, init_theta = 0.5, iter = 20000)
+
+burnIn <- 2000
+accepted_chain_q2 <- chain_q2[-(1:burnIn)]
+
+hist(accepted_chain_q2, breaks = 50, freq = FALSE, 
+     main = "MCMC Trajectory with Empty Data", xlab = expression(theta))
+lines(theta_values, prior_values, lwd = 2) 
+```
+
+Since myData is c(), which is empty, so the likelyhood is 1, therefore the proir distribution is as same as the target distribution. 
+
+# (3)
+```{r}
+data_q3 <- c(0, 1, 1)
+chain_q3 <- run_metropolis(data = data_q3, proposal_sd = 0.15, init_theta = 0.5, iter = 20000)
+
+hist(chain_q3[-(1:burnIn)], breaks = 50, freq = FALSE, 
+     main = "Posterior with Data (0,1,1) & SD=0.15", xlab = expression(theta))
+```
+
+It make sense, the update of data renewed our believes about the distribution. Since there are two "1"s and one "0" in the data, which is somewhat right-skewed, the first peak became lower, and the second peak and third peak became higher,where the third one only became higher slightly because it is not very right-skewed.
+
+# (4)
+
+```{r}
+chain_q4 <- run_metropolis(data = data_q3, proposal_sd = 0.01, init_theta = 0.5, iter = 20000)
+
+par(mfrow=c(1,2)) 
+plot(chain_q4, type = "l", main = "Traceplot (SD=0.01, Init=0.5)", ylab=expression(theta))
+hist(chain_q4[-(1:burnIn)], breaks = 50, freq = FALSE, main = "Histogram")
+par(mfrow=c(1,1)) 
+```
+
+It doesn't make sense, it only has the second peak in the whole graph at 0.3-0.7, which is the first peak by the initial theta. This is because SD=0.01 makes each movement very small, so there should be to many movements from the peak at 0.5 to the valley at about 0.75 more than 20 steps, and all these steps are decreasing, the probablity of accepting this situation is less than the 20th power of the accept probability, so the algorithm will never let the distribution move out of this single peak.
+
+
+# (5)
+```{r}
+chain_q5 <- run_metropolis(data = data_q3, proposal_sd = 0.01, init_theta = 0.9, iter = 20000)
+
+par(mfrow=c(1,2))
+plot(chain_q5, type = "l", main = "Traceplot (SD=0.01, Init=0.9)", ylab=expression(theta))
+hist(chain_q5[-(1:burnIn)], breaks = 50, freq = FALSE, main = "Histogram")
+par(mfrow=c(1,1))
+```
+
+The chain stucked at the peak at 0.9 this time and can't go to the peak at 0.5 for the same reason at part 4, it told us that when the proposal SD is to small compared with the width of valley, the Metropolis algorithm cannot explore the entire parameter space, it can only explore the peak near its initial position.
+
+
+
+

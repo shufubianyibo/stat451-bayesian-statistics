@@ -1,0 +1,134 @@
+---
+title: "hw6"
+output: html_document
+---
+
+# (2)
+```{r}
+library(coda)
+# Input the Data
+x <- c(-0.86, -0.30, -0.05, 0.73) 
+n <- c(5, 5, 5, 5)                
+y <- c(0, 1, 3, 5)                
+
+# Log-Posterior Function
+log_posterior <- function(alpha, beta) {
+  eta   <- alpha + beta * x                     
+  theta <- 1 / (1 + exp(-eta))         
+  if (any(theta <= 0 | theta >= 1)) return(-Inf)
+  sum(y * log(theta) + (n - y) * log(1 - theta))
+}
+
+# Metropolis Algorithm
+set.seed(123)    
+metropolis_bioassay <- function(n_iter   = 50000,
+                                 sigma    = 1.5,      
+                                 alpha0   = 0.8,
+                                 beta0    = 7.7) {
+  samples      <- matrix(NA, nrow = n_iter, ncol = 2)
+  colnames(samples) <- c("alpha", "beta")
+  
+  cur          <- c(alpha0, beta0)
+  log_p_cur    <- log_posterior(cur[1], cur[2])
+  accept_count <- 0
+  
+  for (i in seq_len(n_iter)) {
+    # Random walk proposal (bivariate normal)
+    prop      <- cur + rnorm(2, 0, sigma)
+    log_p_prop <- log_posterior(prop[1], prop[2])
+    
+    # Metropolis acceptance step
+    if (log(runif(1)) < (log_p_prop - log_p_cur)) {
+      cur       <- prop
+      log_p_cur <- log_p_prop
+      accept_count <- accept_count + 1
+    }
+    samples[i, ] <- cur
+  }
+  
+  list(samples      = samples,
+       accept_rate  = accept_count / n_iter)
+}
+
+
+
+# calculate_ess <- function(chain) {
+#    num_samples <- length(chain)
+#    rho <- acf(chain, plot = FALSE)$acf[-1] 
+#    positive_lags <- rho[cumprod(rho > 0) == 1]
+#    ess <- num_samples / (1 + 2 * sum(positive_lags))
+#    return(ess)
+#  }
+
+result     <- metropolis_bioassay(n_iter = 51000, sigma = 1.5)
+accept_rate <- result$accept_rate
+all_samples <- result$samples
+samples     <- all_samples[1001:51000, ]
+alpha_samp  <- samples[, "alpha"]
+beta_samp   <- samples[, "beta"]
+ess_alpha <- effectiveSize(alpha_samp)
+ess_beta  <- effectiveSize(beta_samp)
+
+cat("Acceptance Rate:", accept_rate, "\n")
+cat("Step size: ", 2, "\n")
+cat("Total iterations: ", 51000, "\n")
+cat("Effective Sample Size for Alpha:", round(ess_alpha, 2), "\n")
+cat("Effective Sample Size for Beta:", round(ess_beta, 2), "\n")
+```
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+df_trace <- data.frame(
+  iter  = 1:2000,
+  alpha = all_samples[1:2000, "alpha"],
+  beta  = all_samples[1:2000, "beta"]
+)
+
+p_t1 <- ggplot(df_trace, aes(x=iter, y=alpha)) +
+  geom_line(linewidth=0.3) +
+  geom_vline(xintercept=1000, color="red", linetype="dashed") +
+  annotate("text", x=1050, y=max(df_trace$alpha),
+           label="Burn-in end", color="red", size=3, hjust=0) +
+  labs(title="Trace Plot: α", x="Iteration", y="α") +
+  theme_minimal()
+
+p_t2 <- ggplot(df_trace, aes(x=iter, y=beta)) +
+  geom_line(linewidth=0.3) +
+  geom_vline(xintercept=1000, color="red", linetype="dashed") +
+  labs(title="Trace Plot: β", x="Iteration", y="β") +
+  theme_minimal()
+
+grid.arrange(p_t1, p_t2, ncol=1)
+```
+
+
+# (3)
+```{r}
+ld50_samples <- -samples[, "alpha"] / samples[, "beta"]
+
+cat("\nSummary of LD50 Posterior:\n")
+print(summary(ld50_samples))
+
+ci_ld50 <- quantile(ld50_samples, probs = c(0.025, 0.975))
+cat("\n95% Credible Interval for LD50:\n")
+print(ci_ld50)
+
+hist(ld50_samples, 
+     breaks = 50,  
+     main = "Posterior Distribution of LD50",
+     xlab = "LD50 (Log Dose)", 
+     border = "white")
+abline(v = mean(ld50_samples), col = "red", lwd = 2, lty = 2)
+legend("topright", legend = "Posterior Mean", col = "red", lty = 2, lwd = 2)
+
+plot(samples[, "alpha"], ld50_samples, 
+     pch = 16, col = rgb(0.2, 0.4, 0.6, alpha = 0.3),
+     main = "Scatter Plot: Alpha vs LD50",
+     xlab = "Alpha", ylab = "LD50")
+```
+
+
+
+
+

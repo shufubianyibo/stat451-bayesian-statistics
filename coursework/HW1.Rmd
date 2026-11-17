@@ -1,0 +1,125 @@
+---
+title: "HW1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1
+## (a)
+```{r}
+my_simulation <- list(ten_samples = rlnorm(10, 0, 1),
+                      fiftysample = rlnorm(50, 0, 1),
+                      hundredsamp = rlnorm(100, 0, 1))
+
+
+for (samples in my_simulation) {
+  
+  hist(samples, freq = FALSE, 
+       main = paste("Sample Size n =", length(samples)),
+       xlab = "x", 
+       xlim = c(0, 10),
+       yli = c(0, 1)) 
+  
+  # Overlay the Theoretical Distribution (Red Line)
+  curve(dlnorm(x, meanlog = 0, sdlog = 1), 
+        from = 0, to = 10, 
+        add = TRUE, 
+        col = "red", 
+        lwd = 2)
+  
+}
+```
+
+## (b)
+```{r}
+n_simulations <- 1000   
+sample_size <- 50       
+theoretical_mean <- exp(0 + 1^2 / 2)
+sample_means <- replicate(n_simulations, mean(rlnorm(sample_size, 0, 1)))
+hist(sample_means, freq = FALSE,
+     main = "CLT: Distribution of Sample Means",
+     xlab = "Sample Mean")
+theoretical_var <- (exp(1^2) - 1) * exp(2*0 + 1^2)
+theoretical_se <- sqrt(theoretical_var / sample_size)
+curve(dnorm(x, mean = theoretical_mean, sd = theoretical_se), 
+      add = TRUE, col = "blue", lwd = 2)
+
+abline(v = theoretical_mean, col = "red", lwd = 2, lty = 2)
+legend("topright", legend=c("Normal approx", "True Mean"), 
+       col=c("blue", "red"), lwd=2, lty=c(1,2))
+
+
+N_large <- 2000
+x_large <- rlnorm(N_large, 0, 1)
+running_means <- cumsum(x_large) / (1:N_large)
+plot(1:N_large, running_means, type = "l", 
+     col = "blue", lwd = 1.5,
+     ylim = c(0, 3),
+     main = "LLN: Convergence of Sample Mean",
+     xlab = "Sample Size (n)",
+     ylab = "Cumulative Mean")
+abline(h = theoretical_mean, col = "red", lwd = 2, lty = 2)
+
+legend("topright", legend = c("Sample Mean", "Theoretical Mean"),
+       col = c("blue", "red"), lty = c(1, 2), lwd = 2)
+```
+
+# 2
+## (a)
+Let $P_i$ be the random variable for the probability of a quiz in class $i$, $P_i$ ~ Uniform$(0.1,0.95)$.
+
+Let $X_i$ be whether a quiz actually happens in class $i$, where $X_i = 1$ when there is quiz, $X_i = 0$ when there isn't.
+
+Let the expected total quizzes be $E[Q]$, $E[Q] = \sum_{i=1}^{20} E[X_i]$
+
+By the Law of Iterated Expectation, $E[X_i] = E[E[X_i | P_i]]$
+
+Since a coin flip is a Bernoulli trial, $E[X_i | P_i] = P_i$, $Var(X_i) = p(1-p)$
+
+Then, $E[X_i] = E[P_i]$,
+
+Since $P_i$ ~ Uniform$(0.1,0.95)$, 
+
+$E[P_i] = \frac{0.1 + 0.95}{2} = 0.525$
+
+$Var(X_i) = p(1-p) = 0.525(1 - 0.525) = 0.525(0.475) = 0.249375$
+
+Therefore, $E[Q] = \sum_{i=1}^{20} E[X_i] = 20 \times 0.525 = 10.5$,
+
+$Var(Q) = \sum_{i=1}^{20} Var(X_i) = 20 \times 0.249375 = 4.9875$,
+
+$SD[Q] = \sqrt{4.9875} \approx 2.233$
+
+The expected total number of quizzes is $10.5$, the standard deviation is $2.233$
+
+
+## (b)
+```{r}
+n_monte <- 10000       
+n_classes <- 20       
+min_p <- 0.1          
+max_p <- 0.95
+
+simulate_semester <- function() {
+  p_quizzes <- runif(n_classes, min = min_p, max = max_p)
+  quizzes_given <- rbinom(n = n_classes, size = 1, prob = p_quizzes)
+  return(sum(quizzes_given))
+}
+
+monte_results <- replicate(n_monte, simulate_semester())
+mean(monte_results)
+sd(monte_results)
+```
+
+The mean with Monte Carlo simulation is 10.5113, and the standard deviation is 2.242493.
+
+
+
+
+
+
+
+

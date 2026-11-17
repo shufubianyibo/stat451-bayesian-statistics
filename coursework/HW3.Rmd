@@ -1,0 +1,84 @@
+---
+title: "HW3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+set.seed(123)
+S <- 100000
+alpha_post <- 476
+beta_post <- 526
+theta_samples <- rbeta(S, alpha_post, beta_post)
+```
+
+# (2)
+```{r}
+mean(theta_samples)
+var(theta_samples)
+quantile(theta_samples, c(0.025, 0.975))
+```
+The post mean is 0.475098707405117, posterior variance is 0.000248366426453703, 95% posterior interval is [0.4441427, 0.5060320].
+
+
+# (3)
+```{r}
+post_mean <- mean(theta_samples)
+post_var <- var(theta_samples)
+hist(theta_samples, breaks = 50, prob = TRUE, 
+     main = expression(paste("Posterior Distribution of ", theta)),
+     xlab = expression(theta))
+curve(dnorm(x, mean = post_mean, sd = sqrt(post_var)), add = TRUE, col = "red", lwd = 2)
+```
+Yes, it looks like normal distribution, because we have n=1000, which is very large
+
+# (4)
+
+```{r}
+lambda_samples <- -log(theta_samples) + log(1 - theta_samples)
+
+hist(lambda_samples, breaks = 50, prob = TRUE, 
+     main = expression(paste("Posterior Distribution of ", lambda)),
+     xlab = expression(lambda))
+```
+
+```{r}
+mean(lambda_samples)
+var(lambda_samples)
+quantile(lambda_samples, c(0.005, 0.995))
+```
+The posterior distribution of lambda looks like a Gaussian distribution. The mean is 0.0997873, variance is 0.0040017, and the 99% posterior interval is [-0.06309092, 0.26245380].
+
+# (5)
+```{r}
+mean(theta_samples < 0.485)
+```
+
+73.44% data support the claim that the proportion of female births in the
+population of placenta previa births is less than 0.485
+
+# (6)
+Beta(9+1, 20-9+1) = Beta(10, 12)
+```{r}
+theta_samples_small <- rbeta(S, 10, 12)
+par(mfrow=c(1,2))
+hist(theta_samples, xlim=c(0,1), main="n=1000 (Large Data)")
+hist(theta_samples_small, xlim=c(0,1), main="n=20 (Small Data)")
+```
+```{r}
+mean(theta_samples_small)
+var(theta_samples_small)
+quantile(theta_samples_small, c(0.025, 0.975))
+```
+The data for 20 births became much more unstable, the posterior variance increased from 0.0002483664 to 0.01081704, and then the 95% posterior interval became a much larger range, from [0.4441427, 0.5060320] to [0.2568797, 0.6599812]. The histogram became wider, not concentrate enough. We can't conclude anything since the outcome is affectted too much by randomness. 
+
+
+
+
+
+
+

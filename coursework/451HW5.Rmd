@@ -1,0 +1,100 @@
+---
+title: "451HW5"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+set.seed(123)
+y1 <- 727   
+y2 <- 580   
+y3 <- 136   
+n  <- y1 + y2 + y3 
+alpha_post <- c(y1 + 1, y2 + 1, y3 + 1)
+alpha_sum <- sum(alpha_post)
+post_mean <- alpha_post / alpha_sum
+```
+
+
+#(2)
+```{r}
+log_posterior <- function(theta1, theta2) {
+  theta3 <- 1 - theta1 - theta2
+  if (theta1 <= 0 | theta2 <= 0 | theta3 <= 0) return(-Inf)
+  (alpha_post[1]-1)*log(theta1) +
+    (alpha_post[2]-1)*log(theta2) +
+    (alpha_post[3]-1)*log(theta3)
+}
+
+metropolis <- function(n_iter = 50000, sigma = 0.01) {
+  samples <- matrix(NA, nrow = n_iter, ncol = 2)
+  
+  theta_cur <- c(y1/n, y2/n)
+  log_p_cur <- log_posterior(theta_cur[1], theta_cur[2])
+  accept_count <- 0
+  
+  for (i in seq_len(n_iter)) {
+    theta_prop <- theta_cur + rnorm(2, 0, sigma)
+    log_p_prop <- log_posterior(theta_prop[1], theta_prop[2])
+    
+    log_ratio <- log_p_prop - log_p_cur
+    
+    if (!is.na(log_ratio) && log(runif(1)) < log_ratio) {
+      theta_cur  <- theta_prop
+      log_p_cur  <- log_p_prop
+      accept_count <- accept_count + 1
+    }
+    samples[i, ] <- theta_cur
+  }
+  
+  accept_rate <- accept_count / n_iter
+  return(list(
+    samples = samples,
+    accept_rate = accept_rate
+  ))
+}
+```
+
+```{r}
+mcmc_result <- metropolis(n_iter = 51000, sigma = 0.012)
+
+raw_samples <- mcmc_result$samples      
+acc_rate <- mcmc_result$accept_rate   
+samples     <- raw_samples[1001:51000, ]   
+theta1_mcmc <- samples[, 1]
+theta2_mcmc <- samples[, 2]
+diff_mcmc   <- theta1_mcmc - theta2_mcmc
+acc_rate
+```
+The accept_rate of this mcmc is 0.4126471
+
+
+# (3)
+
+```{r}
+hist(theta1_mcmc, breaks=50, freq=FALSE, border="white",
+     main="Theta 1 (Bush): MCMC vs True", xlab=expression(theta[1]))
+x_val <- seq(0.4, 0.6, length.out=1000)
+lines(x_val, dbeta(x_val, 728, 718), col="red", lwd=2)
+
+hist(theta2_mcmc, breaks=50, freq=FALSE, border="white",
+     main="Theta 2 (Dukakis): MCMC vs True", xlab=expression(theta[2]))
+lines(x_val, dbeta(x_val, 581, 865), col="red", lwd=2)
+```
+The histograms of the Metropolis samples almost align with the theoretical marginal Beta density curves, which confirms that Metropolis algorithm has converged to the correct target posterior distribution.
+
+# (4)
+```{r}
+prob_bush_wins <- mean(theta1_mcmc > theta2_mcmc)
+print(paste("Probability Bush wins:", prob_bush_wins))
+prob_margin_10 <- mean(diff_mcmc > 0.1)
+print(paste("Probability margin > 0.1:", prob_margin_10))
+
+prob_margin_20 <- mean(diff_mcmc > 0.2)
+print(paste("Probability margin > 0.2:", prob_margin_20))
+```
+
+
+
+
+

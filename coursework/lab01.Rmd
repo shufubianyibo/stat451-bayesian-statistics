@@ -1,0 +1,496 @@
+---
+title: "**Lab 1: Review of R and R Markdown**"
+author: "**DATASCI 451**"
+date: "**September 5th, 2025**"
+output:
+  pdf_document:
+    number_sections: true
+    toc: yes
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+
+# Logistics
+
+- Syllabus page on Canvas: office hours schedule, point(s) of contact for each assignment
+- Homework 1 is due Jan 21st at 6pm
+- Homework submission format: PDF rendered from R Markdown file
+- Homework submission location: Canvas then linked to Gradescope
+- Attendance: three random numbers each week. Attendance quiz on Canvas: the sum of the three numbers.
+
+
+
+# Reference material
+
+- `R_intro_Monte_Carlo.Rmd` (which is in the files section on Canvas)
+- [R Markdown cheatsheet](https://rmarkdown.rstudio.com/lesson-15.html)
+- [R Markdown tutorial](https://rmarkdown.rstudio.com/lesson-1.html)
+
+
+
+# Plan for today
+
+1. Learn and/or review how to format an R Markdown file and knit it to a pdf.
+2. Learn and/or review some R fundamentals.
+3. Work through three exercises involving Monte Carlo methods.
+
+
+
+\newpage
+
+# R Markdown
+
+## Overview
+
+R Markdown is a typesetting framework that allows you to combine code, text, and mathematical symbols in a single document. This whole document was written in R Markdown. R Markdown documents have the file extension .Rmd.
+
+We recommend using [RStudio](https://posit.co/download/rstudio-desktop/) to edit R and R Markdown scripts.
+To create an R Markdown document, go to `File -> New File -> R Markdown`. You can also copy this file and use it as a template (recommended).
+
+You can render, or **knit**, an R Markdown file to a .pdf or .html file by clicking the `Knit` button in the bar under the file name. You will probably need to install either [TinyTex](https://yihui.org/tinytex/), [MacTex](https://www.tug.org/mactex/) (Mac only), or [MikTex](https://miktex.org) (any operating system) in order for this to work properly.
+
+Code is written in **code chunks** (Section 4.2). Texts are formatted using **Markdown** syntax (Section 4.3).
+
+## Code chunks
+
+You can easily intersperse text and code. The gray chunks you see are called **code chunks**. To insert a code chunk at the location of your cursor, click `Code -> Insert Chunk`. Alternatively, you can use a keyboard shortcut: `Ctrl + Alt + I` for Windows or `Cmd + Option + I` for Mac.
+
+Let's practice:
+
+*(place a code chunk here)*
+
+Here are some helpful **options** (and their default settings) to control if and how code chunks are displayed when the document is rendered:
+
+- `echo = TRUE`: display the chunk's code in addition to its output
+- `eval = TRUE`: run the chunk when rendering the document
+- `include = TRUE`: display the chunk's code when rendering the document
+- `message = TRUE`: display code messages when rendering the document
+- `warning = TRUE`: display code warnings when rendering the document
+- `fig.align`: e.g., `fig.align = "center"`
+- `out.width`: e.g., `out.width = "75%"`
+
+You can also name a code chunk. The example below is name ``code chunk options".
+
+To set one or more options, place them after the chunk name, separated by commas. Try setting one or more options in the following chunk:
+```{r code chunk options}
+2+2
+
+hist(rnorm(1000))
+```
+
+You can execute a code chunk by clicking the green triangle button in the top-right corner of the chunk.
+
+## Basic formatting
+
+### Paragraph breaks and forced line breaks
+
+To insert a break between paragraphs, include a single completely blank line.
+
+To force a line break without starting a new paragraph, put two blank  
+spaces at the end of a line.
+
+
+### Headers
+
+You can create a header by placing one or more `#`s at the beginning of a line followed by a blank space. The number of `#`s indicates the size of the header — i.e., whether it is a section, sub-section, sub-sub-section, etc.
+
+### Bulleted and numbered lists
+
+- Item 1
+    - Item 1a, created by indenting two spaces (or more) or a tab before the `-`.
+      - Item 1a-1, you can keep nesting deeper with further indentation.
+- Item 2
+* Item 3 (`-` and `*` accomplish the same thing)
+
+1. First step
+    a. Sub-step
+2. Second step
+3. Third step
+
+
+
+### Math
+
+Some of your homework assignments this semester will include mathematical derivations in addition to computational/programming questions. You can use the same commands as you would in LaTeX to type math in R Markdown.
+
+As an example, let's type out the first few steps of the solution to the ordinary least squares (OLS) problem. In simple linear regression, we want to find $\alpha$ and $\beta$ which minimize $\frac{1}{n} \sum_{i = 1}^n (y_i - \alpha - \beta x_i)^2$. To do so, we differentiate the objective function with respect to $\alpha$:
+$$
+\begin{aligned}
+\frac{\partial}{\partial \alpha} \frac{1}{n}\sum_{i = 1}^n (y_i - \alpha - \beta x_i)^2 &= \frac{1}{n}\sum_{i = 1}^n \frac{\partial}{\partial \alpha} (y_i - \alpha - \beta x_i)^2 \\
+&= \frac{1}{n}\sum_{i = 1}^n -2(y_i - \alpha - \beta x_i).
+\end{aligned}
+$$
+
+
+
+### Tables
+
+If you want to include a table in an R Markdown document, I recommend using an [online table generator](https://www.tablesgenerator.com/markdown_tables).
+
+A sample table is below:
+
+| Column 1   |      Column 2      |  Column 3 |
+|----------|:-------------:|------:|
+| col 1 is |  left-aligned | $1600 |
+| col 2 is |    centered   |$12 |
+| col 3 is | right-aligned |$1 |
+
+
+
+### Images
+
+You can include an image in an R Markdown document by using the following syntax:
+
+`![Caption](/path/to/file/on/your/computer/image.jpg){width=...}`
+
+If you prefer to write and scan your answers to non-programming homework questions, this is an easy way to include them in your final document.
+
+![Example image](img1.jpeg){width=50%}
+
+
+### Links
+
+You can include a link in an R Markdown document by using the syntax `[text](link)`. For example, [here](https://rmarkdown.rstudio.com/lesson-1.html) is a link to an R Markdown tutorial.
+
+
+
+\newpage
+
+# R fundamentals
+
+## Vectors
+
+```{r}
+x <- c(1, 2, 3)
+y <- c(4, 5, 6)
+
+4 * x
+
+x^2
+
+x + y
+
+x * y
+
+x %*% y
+
+x %*% t(y)
+```
+
+
+
+## Matrices
+
+```{r}
+mat1 <- matrix(data = 1:9, nrow = 3, ncol = 3)
+mat2 <- matrix(data = -4:4, nrow = 3, ncol = 3, byrow = TRUE)
+
+4 * mat1
+
+t(mat1)
+
+mat1 %*% mat2
+```
+
+
+
+## Lists
+
+A list in R is a flexible container that can hold different types of objects: vectors, matrices, numbers, or even text.
+
+```{r}
+my_list <- list(First_class = c(1, 2, 3, 4, 4, 4), 
+                Second_class = matrix(1:4, 2, 2),
+                last_element = 2.4,
+                words = c("i", "love", "statistics"))
+
+my_list$First_class
+
+names(my_list)
+```
+
+
+
+## Data frames
+
+A data frame is essentially a list of vectors. Each column of a data frame must have entries of the same data type. Different columns must have the same number of rows, but they can be of different data types. 
+
+You can think of a data frame as a table
+
+```{r}
+# creating a data frame from a matrix
+df1 <- data.frame(mat1)
+df1
+
+# creating a data frame column by column
+df2 <- data.frame(col1 = 24:26, col2 = c("a", "b", "c"), col3 = c(4.5, 1.4, 5.1))
+df2
+
+# dimensions and column names
+dim(df2)
+colnames(df2)
+
+# indexing rows
+df2[1,]
+
+# indexing columns
+df2[,1]
+df2$col1
+```
+
+Real datasets are typically stored and loaded in as data frames:
+```{r}
+str(iris)
+```
+
+
+
+## Conditionals (if/else)
+
+```{r}
+number <- 31
+
+if (number > 30 & number < 31) {
+  print("condition 1 satsfied")
+}
+
+if (number > 30 | number < 31) {
+  print("condition 2 satisfied")
+}
+
+if (number <= 20) {
+  print("less than twenty")
+} else if (number <= 30) {
+  print("less than thirty")
+} else {
+  print("less than forty")
+}
+
+ifelse(number <= 20, "less than twenty", ifelse(number <= 30, "less than thirty", "less than forty"))
+```
+
+
+
+## Loops (for/while)
+
+```{r}
+for(i in 1:5){
+  print(i)
+}
+```
+
+```{r}
+i = 0
+while(i < 5){
+  i = i + 1
+  print(i)
+}
+```
+
+It's often more efficient to use `apply` functions instead of loops:
+```{r}
+# ?apply # `?` followed by the function name will open the documentation for the function
+# ?sapply
+sapply(1:5, function(i) {i ^ 2})
+```
+
+These functions are particularly useful when applying a function to all columns of a data frame:
+```{r}
+df1
+sapply(df1, mean)
+```
+
+
+
+## Basic statistical functions
+
+The following functions (and many others) are automatically available when you open an R Studio window.
+
+```{r}
+a <- iris$Sepal.Length
+b <- iris$Sepal.Width
+
+mean(a)
+
+var(a)
+
+cov(a, b)
+
+cor(a, b)
+
+sd(a)
+
+median(a)
+
+quantile(a, c(0.025, 0.975))
+
+range(a)
+
+min(a)
+
+max(a)
+```
+
+
+
+## User-defined functions
+
+```{r}
+my_function <- function(x, y, z = 8) {
+  if (!is.numeric(x) | !is.numeric(y)) {
+    return("bad input(s): x and y need to be numeric")
+  }
+  
+  result <- x + 2*y + z^2 - 3
+  
+  return(result)
+}
+
+my_function(x = 4, y = -12, z = 8)
+my_function(x = 4, y = -12) # unless overridden, z = 8 by default
+
+my_function(x = "stats", y = -12, z = 2)
+```
+
+It's actually not necessary to name a function. You can create a lambda function (AKA anonymous function) as follows:
+```{r}
+(function(x, y, z = 8) {return(x + 2*y + z^2 - 3)})(x = 4, y = -12)
+```
+
+
+
+## Packages
+
+To use functions and datasets from packages that are not automatically installed by R, you'll have to install and load them as follows:
+```{r}
+# install.packages("tidyverse")
+library(tidyverse)
+```
+
+
+
+## Plots
+
+There are several built-in plotting functions in R.
+
+Scatter plots:
+```{r}
+# ?plot
+plot(x = iris$Sepal.Length, y = iris$Sepal.Width,
+     col = iris$Species, pch = 19, cex = 1.5,
+     xlab = "Sepal length", ylab = "Sepal width")
+```
+
+Histograms:
+```{r}
+# ?hist
+hist(iris$Petal.Length, breaks = 40, col = "lightgoldenrod2",
+     xlab = "Petal length", ylab = "Number of flowers")
+```
+
+Box plots:
+```{r}
+# ?boxplot
+boxplot(iris$Petal.Width, horizontal = TRUE,
+        col = "steelblue3", xlab = "Petal width")
+```
+
+However, I recommend using [`ggplot2`](https://ggplot2.tidyverse.org/), which is a plotting package that provides more plot types and customization options. We'll learn more about `ggplot2` sometime in the next few weeks so that you can use it for your final project if you want to.
+
+
+
+\newpage
+
+# Monte Carlo methods
+
+## Sampling from probability distributions
+
+For many common distributions, the `stats` package (which is loaded automatically) implements probability density functions (PDFs), cumulative density functions (CDFs), quantile functions, and sampling functions.
+
+|    Function   |       Description        |
+| ------------: | :----------------------- | 
+| `d<distr>(x)`  |   evaluate PDF at `x`    |
+| `p<distr>(q)`  |   evaluate CDF at `q`    |
+| `q<distr>(p)`  |  compute `p`th quantile  |
+| `r<distr>(n)`  | generate `n` iid samples |
+
+Here's a list of some common distribution names (i.e., `<distr>` in the above table):
+
+- `unif` (uniform)
+- `norm` (Gaussian)
+- `binom` (binomial)
+- `chisq` (chi-squared)
+- `exp` (exponential)
+- `f` (F)
+- `pois` (Poisson)
+- `t` (t)
+- `beta` (beta)
+- `gamma` (gamma)
+- `lnorm` (log-normal)
+- `cauchy` (Cauchy)
+
+
+
+## Setting the seed
+
+Anytime you perform a random operation in R (e.g., sampling from one of the distributions above), you should set the seed to ensure that your results are reproducible.
+
+```{r seed}
+set.seed(451)
+rnorm(5)
+
+set.seed(269387)
+rnorm(5)
+
+set.seed(451)
+rnorm(5)
+```
+
+
+
+\newpage
+
+## Exercise 1: Sampling from a distribution
+
+**Generate 1,000 samples from a Beta(3, 1) distribution. Compute the mean and variance of the samples.**
+
+```{r}
+
+```
+
+
+
+\newpage
+
+## Exercise 2: Verifying a property of the gamma and exponential distributions
+
+**Verify that for any $\lambda > 0$, Gamma(1, $\lambda$) is equivalent to Exponential($\lambda$), as mentioned in the second bullet point [here](https://en.wikipedia.org/wiki/Gamma_distribution#Related_distributions).**
+
+```{r}
+
+```
+
+
+
+\newpage
+
+## Exercise 3: Probability integral transform
+
+**Use the probability integral transform to generate 10,000 samples of a random variable $X$ with probability density function**
+$$ 
+f(x) = \frac{1}{4}x^3, \quad x \in [0, 2]
+$$
+**and use the samples to approximate $\mathbb E[X]$.**
+
+```{r}
+
+```
+
+
+
+

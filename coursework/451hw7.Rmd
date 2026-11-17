@@ -1,0 +1,281 @@
+---
+title: "451hw7"
+output: html_document
+---
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(coda)
+```
+
+
+# (1)
+Joint posterior distribution: $\theta_j | y_j, \alpha, \beta ~ Beta(\alpha + y_j, \beta + n_j - y_j)$
+```{r}
+y <- c(0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,
+       2,1,5,2,5,3,2,7,7,3,3,2,9,10,4,4,4,4,4,4,4,10,4,4,4,5,
+       11,12,5,5,6,5,16,15,15,9,4)
+n <- c(20,19,19,19,19,18,17,20,20,20,20,19,19,18,18,25,24,
+       23,20,20,20,20,20,20,10,49,19,46,27,17,49,47,20,20,13,48,50,20,
+       20,20,20,20,20,20,48,19,19,19,22,46,49,20,20,23,19,
+       52,46,47,24,14)
+
+J <- length(y) 
+
+alpha_fixed <- 1.4
+beta_fixed  <- 8.6
+
+alpha_post_j <- alpha_fixed + y
+beta_post_j  <- beta_fixed  + n - y
+
+post_mean <- alpha_post_j / (alpha_post_j + beta_post_j)
+post_lo   <- qbeta(0.025, alpha_post_j, beta_post_j)
+post_hi   <- qbeta(0.975, alpha_post_j, beta_post_j)
+
+df_part1 <- data.frame(
+  group     = 1:J,
+  mean      = post_mean,
+  lo        = post_lo,
+  hi        = post_hi,
+  obs_rate  = y / n
+)
+```
+
+```{r}
+p1a <- ggplot(df_part1, aes(x=group, y=mean)) +
+  geom_point(color="blue", size=1.8) +
+  geom_errorbar(aes(ymin=lo, ymax=hi),
+                width=0.3, color="blue", alpha=0.6) +
+  geom_point(aes(y=obs_rate), color="red",
+             shape=4, size=1.5) +
+  geom_hline(yintercept=alpha_fixed/(alpha_fixed+beta_fixed),
+             linetype="dashed") +
+  annotate("text", x=55, y=alpha_fixed/(alpha_fixed+beta_fixed)+0.02,
+           label=sprintf("Prior mean=%.2f",
+                         alpha_fixed/(alpha_fixed+beta_fixed)), size=3) +
+  labs(title=sprintf("Posterior of theta 1…theta 60 | (α=%.1f, β=%.1f)",
+                     alpha_fixed, beta_fixed),
+       subtitle="dot = Posterior mean + 95% CI   cross = Observed rate",
+       x="Group j", y="theta j") +
+  theme_minimal()
+p1a
+```
+
+# (3)
+```{r}
+log_marginal_posterior <- function(alpha, beta) {
+  if (alpha <= 0 | beta <= 0) return(-Inf)
+  log_prior <- -2.5 * log(alpha + beta)
+  log_lik <- sum(
+    lbeta(alpha + y, beta + n - y) - lbeta(alpha, beta)
+  )
+  
+  log_prior + log_lik
+}
+
+log_post_transformed <- function(log_alpha, log_beta) {
+  alpha <- exp(log_alpha)
+  beta  <- exp(log_beta)
+  log_marginal_posterior(alpha, beta) + log_alpha + log_beta
+}
+
+metropolis_ab <- function(n_iter = 60000, sigma = 0.3) {
+  samples      <- matrix(NA, nrow=n_iter, ncol=2,
+                         dimnames=list(NULL, c("alpha","beta")))
+  mu0    <- mean(y/n)
+  var0   <- var(y/n)
+  alpha0 <- mu0 * (mu0*(1-mu0)/var0 - 1)
+  beta0  <- alpha0 * (1-mu0) / mu0
+  alpha0 <- max(alpha0, 0.5)
+  beta0  <- max(beta0, 0.5)
+  
+  cur       <- c(log(alpha0), log(beta0))
+  log_p_cur <- log_post_transformed(cur[1], cur[2])
+  accept    <- 0
+  
+  for (i in seq_len(n_iter)) {
+    prop      <- cur + rnorm(2, 0, sigma)
+    log_p_prop <- log_post_transformed(prop[1], prop[2])
+    
+    if (log(runif(1)) < (log_p_prop - log_p_cur)) {
+      cur       <- prop
+      log_p_cur <- log_p_prop
+      accept    <- accept + 1
+    }
+    samples[i, ] <- exp(cur)  
+  }
+  
+  list(samples     = samples,
+       accept_rate = accept / n_iter)
+}
+
+res_ab      <- metropolis_ab(n_iter=61000, sigma=0.3)
+burn_in     <- 1000
+ab_samples  <- res_ab$samples[(burn_in+1):61000, ]
+alpha_samp  <- ab_samples[, "alpha"]
+beta_samp   <- ab_samples[, "beta"]
+
+# Trace Plots
+df_tr <- data.frame(
+  iter  = 1:2000,
+  alpha = res_ab$samples[1:2000,"alpha"],
+  beta  = res_ab$samples[1:2000,"beta"]
+)
+p_ta <- ggplot(df_tr, aes(x=iter, y=alpha)) +
+  geom_line(linewidth=0.3) +
+  geom_vline(xintercept=1000, color="red", linetype="dashed") +
+  labs(title="Trace: α", x="Iteration", y="α") +
+  theme_minimal()
+
+p_tb <- ggplot(df_tr, aes(x=iter, y=beta)) +
+  geom_line(linewidth=0.3) +
+  geom_vline(xintercept=1000, color="red", linetype="dashed") +
+  labs(title="Trace: β", x="Iteration", y="β") +
+  theme_minimal()
+
+df_ab <- data.frame(alpha=alpha_samp, beta=beta_samp,
+                    mu=alpha_samp/(alpha_samp+beta_samp))
+
+p_a <- ggplot(df_ab, aes(x=alpha)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60, alpha=0.7) +
+  geom_density(linewidth=1) +
+  geom_vline(xintercept=mean(alpha_samp),
+             color="red", linetype="dashed") +
+  labs(title=sprintf("Posterior of α  (mean=%.2f)", mean(alpha_samp)),
+       x="α", y="Density") +
+  theme_minimal()
+
+p_b <- ggplot(df_ab, aes(x=beta)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60, alpha=0.7) +
+  geom_density(linewidth=1) +
+  geom_vline(xintercept=mean(beta_samp),
+             color="red", linetype="dashed") +
+  labs(title=sprintf("Posterior of β  (mean=%.2f)", mean(beta_samp)),
+       x="β", y="Density") +
+  theme_minimal()
+
+p_mu <- ggplot(df_ab, aes(x=mu)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60, alpha=0.7) +
+  geom_density(linewidth=1) +
+  geom_vline(xintercept=mean(df_ab$mu),
+             color="red", linetype="dashed") +
+  labs(title=sprintf("Posterior Mean α/(α+β)  (mean=%.3f)",
+                     mean(df_ab$mu)),
+       x="α/(α+β)", y="Density") +
+  theme_minimal()
+
+p_joint <- ggplot(df_ab[1:5000,], aes(x=alpha, y=beta)) +
+  geom_point(alpha=0.1, size=0.5) +
+  stat_density_2d(aes(color=after_stat(level)),
+                  bins=8, linewidth=0.6) +
+  scale_color_viridis_c(name="Density") +
+  labs(title="Joint Posterior (α, β)",
+       x="α", y="β") +
+  theme_minimal()
+
+grid.arrange(p_ta, p_tb,ncol=1)
+grid.arrange(p_a, p_b, ncol=1)
+grid.arrange(p_mu, p_joint, ncol=1)
+```
+
+
+# (4)
+
+```{r}
+
+S <- nrow(ab_samples)  
+theta_post_mean <- matrix(NA, nrow=S, ncol=J)
+
+for (s in 1:S) {
+  a_s <- alpha_samp[s]
+  b_s <- beta_samp[s]
+  theta_post_mean[s, ] <- (a_s + y) / (a_s + b_s + n)
+}
+
+theta_mean <- colMeans(theta_post_mean)
+theta_lo   <- apply(theta_post_mean, 2, quantile, 0.025)
+theta_hi   <- apply(theta_post_mean, 2, quantile, 0.975)
+
+theta_samples <- matrix(NA, nrow=S, ncol=J)
+for (s in 1:S) {
+  a_s <- alpha_samp[s]
+  b_s <- beta_samp[s]
+  theta_samples[s, ] <- rbeta(J,
+                               shape1 = a_s + y,
+                               shape2 = b_s + n - y)
+}
+
+df_theta <- data.frame(
+  group    = 1:J,
+  mean     = theta_mean,
+  lo       = theta_lo,
+  hi       = theta_hi,
+  obs_rate = y / n
+)
+
+p_theta_all <- ggplot(df_theta, aes(x=group, y=mean)) +
+  geom_point(color="blue", size=1.8) +
+  geom_errorbar(aes(ymin=lo, ymax=hi),
+                width=0.3, color="blue", alpha=0.5) +
+  geom_point(aes(y=obs_rate), color="red",
+             shape=4, size=1.5) +
+  geom_hline(yintercept=mean(theta_mean),
+             linetype="dashed") +
+  labs(title="Posterior of theta 1…theta 60 (averaging over α, β)",
+       subtitle="dot = Posterior mean + 95% CI   cross = Observed rate",
+       x="Group j", y="theta j") +
+  theme_minimal()
+
+selected <- c(1, 10, 26, 36, 56, 60)
+df_dens2 <- do.call(rbind, lapply(selected, function(j) {
+  data.frame(
+    value = theta_samples[1:5000, j],
+    group = paste0("Group ", j,
+                   " (", y[j], "/", n[j], ")")
+  )
+}))
+
+p_dens2 <- ggplot(df_dens2, aes(x=value, fill=group, color=group)) +
+  geom_density(alpha=0.25, linewidth=0.8) +
+  labs(title="Posterior Densities for Selected theta j",
+       x="theta j", y="Density", fill="Group", color="Group") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+df_theta60 <- data.frame(theta60 = theta_samples[, 60])
+
+p_theta60 <- ggplot(df_theta60, aes(x=theta60)) +
+  geom_histogram(aes(y=after_stat(density)), bins=60, alpha=0.7) +
+  geom_density(linewidth=1.2) +
+  geom_vline(xintercept=mean(theta_samples[,60]),
+             color="red", linetype="dashed") +
+  geom_vline(xintercept=y[60]/n[60],
+             color="orange", linetype="dotted", linewidth=1) +
+  annotate("text", x=mean(theta_samples[,60])+0.02, y=8,
+           label=sprintf("Post.mean=%.3f", mean(theta_samples[,60])),
+           color="red", size=3.5) +
+  annotate("text", x=y[60]/n[60]+0.02, y=6,
+           label=sprintf("Obs=%.3f", y[60]/n[60]),
+           color="orange", size=3.5) +
+  labs(title="Posterior of theta 60 (Current Experiment: 4/14)",
+       x="theta 60", y="Density") +
+  theme_minimal()
+
+p_theta_all
+p_dens2
+p_theta60
+
+cat(sprintf("observe rate:    %.4f\n", y[60]/n[60]))
+cat(sprintf("posterier mean:   %.4f\n", mean(theta_samples[,60])))
+cat(sprintf("95%% CI:    (%.4f, %.4f)\n",
+            quantile(theta_samples[,60], 0.025),
+            quantile(theta_samples[,60], 0.975)))
+```
+
+
+
+
+
+
+
+

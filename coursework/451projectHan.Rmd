@@ -1,0 +1,94 @@
+---
+title: "451project"
+output: html_document
+---
+```{r}
+
+library(rstan)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r}
+data <- read.csv("adult_2022.csv")
+```
+
+Beta 1 = age, Beta 2 = gender, Beta 3 = Urban, Beta 4 = Edu
+
+```{r}
+library(rstan)
+library(dplyr)
+
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+data <- na.omit(data)
+data$prov_id <- as.integer(as.factor(data$province))
+X_matrix <- model.matrix(~ age + male + urban + edu, data = data)
+X_matrix <- X_matrix[, -1]
+
+stan_data <- list(
+  N = nrow(data),
+  J = length(unique(data$prov_id)),
+  K = ncol(X_matrix),
+  X = X_matrix,
+  prov = data$prov_id,
+  y = as.integer(data$married)
+)
+
+stan_code <- "
+data {
+  int<lower=0> N;               
+  int<lower=1> J;              
+  int<lower=1> K;              
+  
+  matrix[N, K] X;              
+  int<lower=1, upper=J> prov[N];
+  int<lower=0, upper=1> y[N];  
+}
+
+parameters {
+  vector[K] beta;              
+  real alpha0;                 
+  real<lower=0> sigma_prov;    
+  vector[J] alpha_prov_raw;   
+}
+
+transformed parameters {
+  vector[J] alpha_prov;
+  alpha_prov = alpha0 + sigma_prov * alpha_prov_raw;
+}
+
+model {
+  beta ~ normal(0, 5);
+  alpha0 ~ normal(0, 5);
+  sigma_prov ~ student_t(3, 0, 2.5); 
+  alpha_prov_raw ~ std_normal();    
+  y ~ bernoulli_logit(alpha_prov[prov] + X * beta);
+}
+"
+```
+
+```{r}
+fit <- stan(
+  model_code = stan_code,  
+  data = stan_data,
+  iter = 2000,            
+  warmup = 1000,        
+  chains = 4,            
+  seed = 42,
+  control = list(adapt_delta = 0.95) 
+)
+```
+
+```{r}
+print(fit, pars = c("alpha0", "beta", "sigma_prov"))
+
+traceplot(fit, pars = c("alpha0", "beta", "sigma_prov"), inc_warmup = FALSE)
+
+plot(fit, pars = c("beta", "sigma_prov")) + 
+  ggtitle("Posterior Distributions of Fixed Effects and Regional Variance")
+```
+
+
+

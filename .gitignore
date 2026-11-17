@@ -1,0 +1,12 @@
+.DS_Store
+._*
+.env
+.env.*
+*.o
+*.exe
+*.dSYM/
+__pycache__/
+build/
+target/
+.venv*/
+node_modules/

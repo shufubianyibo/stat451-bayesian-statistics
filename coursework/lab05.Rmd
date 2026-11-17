@@ -1,0 +1,393 @@
+---
+title: "**Lab 6: More multiparameter models**"
+author: "**DATASCI 451**"
+date: "**Feb 13th, 2026**"
+output:
+  pdf_document:
+    toc: yes
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "80%", fig.align = 'center',
+                      warning = FALSE, message = FALSE)
+```
+
+\newpage
+
+
+
+# Logistics
+
+- Homework 3 is due Friday, February 13th at 6pm
+
+
+# Reference material
+
+- Bayesian Data Analysis chapter 3
+
+
+
+# Plan for today
+
+Two exercises:
+
+- Multinomial-Dirichlet
+- Logistic regression
+
+
+
+\newpage
+
+# Exercise 1: Baseball pitch types
+
+Tarik Skubal, a pitcher for the Detroit Tigers, throws a few different types of pitches: two types of fastballs, a changeup, and two types of breaking pitches. The following table reports the number of times he threw each pitch type during the 2024 season:
+
+| Fastball | Changeup | Breaking | Total |
+|----------|----------|----------|-------|
+| 1524     | 771      | 542      | 2837  |
+
+Each of Skubal's pitches falls in one of these three categories, so it makes sense to model these 2837 observations with a multinomial distribution. Let $y = (y_1,y_2,y_3)$, where $y_1 = 1524$, $y_2 = 771$, and $y_3 = 542$ denote the number of fastballs, changeups, and breaking pitches thrown by Skubal in 2024, respectively. Let $\theta = (\theta_1,\theta_2,\theta_3)$, where $\theta_1$, $\theta_2$, $\theta_3$ denote the population proportion of Skubal's pitch arsenal (in any season) accounted for by each pitch type.
+
+The likelihood is
+$$
+\begin{aligned}
+p(y \mid \theta) &= \frac{(y_1 + y_2 + y_3)!}{y_1! y_2! y_3!} \theta_1^{y_1} \theta_2^{y_2} \theta_3^{y_3} \\
+&\propto \theta_1^{y_1} \theta_2^{y_2} \theta_3^{y_3} \\
+&= \theta_1^{1524} \theta_2^{771} \theta_3^{542}
+\end{aligned}
+$$
+
+The Dirichlet distribution (which is the multivariate version of the beta distribution) is conjugate for the multinomial likelihood. The Dirichlet density with parameters $\alpha = (\alpha_1,\alpha_2,\alpha_3)$ is
+$$
+\begin{aligned}
+p(\theta) &= \frac{1}{B(\alpha)} \theta_1^{\alpha_1-1} \theta_2^{\alpha_2-1} \theta_3^{\alpha_3-1} \\
+&= \frac{\Gamma(\alpha_1) \Gamma(\alpha_2) \Gamma(\alpha_3)}{\Gamma(\alpha_1 + \alpha_2 + \alpha_3)} \theta_1^{\alpha_1-1} \theta_2^{\alpha_2-1} \theta_3^{\alpha_3-1} \\
+&\propto \theta_1^{\alpha_1-1} \theta_2^{\alpha_2-1} \theta_3^{\alpha_3-1}.
+\end{aligned}
+$$
+
+
+
+**Let $\alpha_1 = \alpha_2 = \alpha_3 = 1$. What is the posterior distribution of $\theta \mid y$?**
+
+...
+
+
+
+\newpage
+
+**What is the posterior probability that offspeed pitches (changeups and breaking balls) make up more than half of Skubal's arsenal? (Hint: You can use `rdirichlet()` from the `LaplacesDemon` package to sample from a Dirichlet distribution in R.)**
+
+```{r}
+
+```
+
+
+
+\newpage
+
+**Use the Metropolis algorithm to generate samples of $\theta$ from the posterior distribution. Tune the proposal standard deviation so that approximately 25% of proposals are accepted. Discard an appropriate number of burn-in samples if necessary.**
+
+\underline{Hint 1:}
+
+The likelihood involves the term
+$$
+\theta_1^{1524} \theta_2^{771} \theta_3^{542}.
+$$
+
+Check out what happens when we plug in an arbitrary value like $(\theta_1,\theta_2,\theta_3) = (0.3,0.4,0.3)$:
+```{r}
+0.3^(1524)
+0.4^(771)
+0.3^(542)
+
+(0.3^(1524)) * (0.4^(771)) * (0.3^(542))
+```
+
+The product of the three terms isn't actually zero, but it's close enough that R treats it as zero. This is a problem!
+
+Now check out what happens if we compute the same thing on the log scale:
+$$
+1524 \log \theta_1 + 771 \log \theta_2 + 542 \log \theta_3
+$$
+
+```{r}
+1524*log(0.3)
+771*log(0.4)
+542*log(0.3)
+
+1524*log(0.3) + 771*log(0.4) + 542*log(0.3)
+```
+
+These calculations are much more stable. Because of this, it's often a good idea to compute the prior, likelihood, and acceptance probability on the log scale. The prior is
+$$
+\begin{aligned}
+p(\theta) &= \frac{1}{B((1,1,1))} \theta_1^{1-1} \theta_2^{1-1} \theta_3^{1-1} \\
+&= \text{constant} \cdot \theta_1^0 \theta_2^0 \theta_3^0 \\
+&= \text{constant} \cdot 1,
+\end{aligned}
+$$
+so the log-prior is
+$$
+\log p(\theta) = \text{constant} + 0.
+$$
+
+The likelihood is
+$$
+p(y \mid \theta) = \frac{(1524 + 771 + 542)!}{1524! 771! 542!} \theta_1^{1524} \theta_2^{771} \theta_3^{542},
+$$
+so the log-likelihood is
+$$
+\log p(y \mid \theta) = \text{constant} + 1524 \log \theta_1 + 771 \log \theta_2 + 542 \log \theta_3.
+$$
+
+The log of the acceptance probability is
+$$
+\log \text{accept} = \log \frac{p(\theta^*) p(y \mid \theta^*)}{p(\theta^{(t-1)}) p(y \mid \theta^{(t-1)})} = [\log p(\theta^*) + \log p(y \mid \theta^*)] - [\log p(\theta^{(t-1)}) + \log p(y \mid \theta^{(t-1)})].
+$$
+
+To accept or reject, we can sample $u \sim \text{Uniform}(0,1)$ and accept if
+$$
+\log u \leq \log \text{accept}.
+$$
+
+
+
+\vspace{1cm}
+
+\underline{Hint 2:}
+
+For any sample $\theta$, we have $\theta_1 + \theta_2 + \theta_3 = 1 \quad\therefore\quad \theta_3 = 1 - \theta_1 - \theta_2$. So instead of proposing a new $\theta_1$, $\theta_2$, and $\theta_3$ in every iteration, we can just propose a new $\theta_1$ and $\theta_2$ and then compute $\theta_3$.
+
+
+
+\vspace{1cm}
+
+Define functions to compute the log-prior and log-likelihood:
+```{r}
+logprior <- function(theta) {
+  ...
+}
+```
+
+```{r}
+loglikelihood <- function(theta, y) {
+  ...
+}
+```
+
+
+
+Define a function to run the Metropolis algorithm:
+```{r}
+runMCMC <- function(num_iters, logprior, loglikelihood, y,
+                    proposal_sd, initial_theta) {
+  # Create empty matrix to store theta and initialize it
+  theta <- ...
+  theta[1,] <- ...
+  
+  # Create empty vector to store accept/reject indicator
+  # (we'll use this later to compute the acceptance rate of our proposals)
+  accept <- ...
+  
+  for (t in 2:num_iters) {
+    # Propose new theta
+    proposed_theta <- ...
+    
+    # Compute acceptance probability and accept/reject
+    lognumerator <- ...
+    logdenominator <- ...
+    logacceptprob <- ...
+    accept[t] <- ...
+    
+    # Keep proposed theta if accept, keep previous theta if reject
+    theta[t,] <- ...
+  }
+  
+  return(list(theta = theta, accept = accept))
+}
+```
+
+```{r}
+
+```
+
+
+
+\newpage
+
+**The marginal distributions of a Dirichlet distribution are all beta distributions — i.e., if**
+$$
+x = (x_1,x_2,x_3) \sim \text{Dirichlet}((\pi_1,\pi_2,\pi_3)),
+$$
+**then**
+$$
+\begin{aligned}
+x_1 &\sim \text{Beta}(\pi_1, \pi_2 + \pi_3) \\
+x_2 &\sim \text{Beta}(\pi_2, \pi_1 + \pi_3) \\
+x_3 &\sim \text{Beta}(\pi_3, \pi_1 + \pi_2).
+\end{aligned}
+$$
+
+**Using this fact, compare the posterior samples you obtained with the Metropolis algorithm to the true posterior distribution.**
+
+```{r}
+
+```
+
+
+ 
+\newpage
+
+**Use your samples to estimate the posterior probability that offspeed pitches (changeups and breaking balls) make up more than half of Skubal's arsenal. Compare your answer to the probability we computed earlier.**
+
+```{r}
+
+```
+
+
+
+\newpage
+
+# Exercise 2: Credit cards
+
+The average balance remaining on a customer's credit card bill tends to be a relatively strong indicator of whether the customer will default on their credit card debt (i.e., fail to pay off their debt for a prolonged period). We can use a logistic regression model to quantify this relationship.
+
+```{r}
+# install.packages("ISLR2")
+library(ISLR2)
+
+# install.packages("tidyverse")
+library(tidyverse)
+```
+
+
+
+The `Default` dataset contains financial information about 10,000 customers, including the binary response `default` and our predictor of interest `balance`.
+```{r}
+Default %>% glimpse()
+Default %>% summary()
+```
+
+```{r out.width="60%"}
+Default %>%
+  ggplot(aes(x = default, y = balance)) +
+    geom_boxplot(fill = "lightgoldenrod3") + theme_classic()
+```
+
+
+
+Let $y_i \in \{0,1\}$ denote the default status of customer $i \in \{1,...,n\}$, where $n = 10,000$. Let $x_i$ denote the average balance remaining on their credit card. For all $i \in \{1,...,n\}$, we model
+$$
+y_i \sim \text{Bernoulli}(\pi_i),
+$$
+where
+$$
+\log \frac{\pi_i}{1-\pi_i} = \theta_0 + \theta_1 x_i,
+$$
+which we can also write as
+$$
+\begin{aligned}
+\frac{\pi_i}{1-\pi_i} &= e^{\theta_0 + \theta_1 x_i} \\
+\Longleftrightarrow\quad \pi_i &= e^{\theta_0 + \theta_1 x_i} (1-\pi_i) \\
+\Longleftrightarrow\quad \pi_i (1 + e^{\theta_0 + \theta_1 x_i}) &= e^{\theta_0 + \theta_1 x_i} \\
+\Longleftrightarrow\quad \pi_i &= \frac{e^{\theta_0 + \theta_1 x_i}}{1 + e^{\theta_0 + \theta_1 x_i}}.
+\end{aligned}
+$$
+
+We'll store the predictor `balance` and the response `default` as `x` and `y`, respectively:
+```{r}
+x <- Default$balance
+y <- ifelse(Default$default == "Yes", 1, 0)
+```
+
+Let $\theta := (\theta_0, \theta_1)$, $y := \{y_i\}_{i=1}^n$, and $x := \{x_i\}_{i=1}^n$. Our goal is to draw posterior samples of $\theta$ from the posterior $p(\theta \mid y, x)$.
+
+
+
+\vspace{1cm}
+
+**We'll use a flat prior $p(\theta) \propto 1$. Define a function that takes in a sample $\theta$ and returns the log of the prior at $\theta$.**
+
+```{r}
+logprior <- function(theta) {
+  ...
+}
+```
+
+
+
+\newpage
+
+**Derive the log-likelihood $\log p(y \mid \theta, x)$, then implement a function that takes in a sample $\theta$ and the data vectors $x$ and $y$ and returns the log-likelihood at $\theta$.**
+
+```{r}
+loglikelihood <- function(theta, x, y) {
+  ...
+}
+```
+
+
+
+\newpage
+
+**Using the `runMCMC()` function below, run the Metropolis algorithm to generate samples of $\theta$ from the posterior distribution. Tune the proposal standard deviation so that approximately 25% of proposals are accepted. Discard an appropriate number of burn-in samples if necessary. (Hint: Try using a larger proposal standard deviation for $\theta_0$ than for $\theta_1$.)**
+
+```{r}
+runMCMC <- function(num_iters, logprior, loglikelihood, x, y,
+                    proposal_sd, initial_theta) {
+  # Create empty matrix to store theta and initialize it
+  theta <- matrix(0, nrow = num_iters, ncol = 2)
+  theta[1,] <- initial_theta
+  
+  # Create empty vector to store accept/reject indicator
+  # (we'll use this later to compute the acceptance rate of our proposals)
+  accept <- numeric(num_iters)
+  
+  for (t in 2:num_iters) {
+    # Propose new theta
+    proposed_theta <- rnorm(2, theta[t-1,], proposal_sd)
+    
+    # Compute acceptance probability and accept/reject
+    lognumerator <- logprior(proposed_theta) + loglikelihood(proposed_theta, x, y)
+    logdenominator <- logprior(theta[t-1,]) + loglikelihood(theta[t-1,], x, y)
+    logacceptprob <- lognumerator - logdenominator
+    accept[t] <- log(runif(1)) < logacceptprob
+    
+    # Keep proposed theta if accept, keep previous theta if reject
+    theta[t,] <- proposed_theta * accept[t] + theta[t-1,] * (1 - accept[t])
+  }
+  
+  return(list(theta = theta, accept = accept))
+}
+```
+
+```{r}
+
+```
+
+
+
+\newpage
+
+**Use your MCMC samples to estimate the posterior mean of $\theta_0$ and $\theta_1$. How do these posterior means compare to the coefficients obtained by fitting a logistic regression model with `glm()`?**
+
+```{r}
+
+```
+
+
+
+
+\newpage
+
+**The average account balance at which the probability of defaulting is 0.5 can be written as a function of $\theta_0$ and $\theta_1$. Derive this expression, then create a histogram of the posterior distribution of this quantity.**
+
+```{r}
+
+```
+
+
+
+

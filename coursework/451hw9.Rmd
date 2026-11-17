@@ -1,0 +1,176 @@
+---
+title: "451hw9"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(rstan)
+library(readr)
+library(ggplot2)
+df <- read.csv("BattingAverage.csv")
+```
+
+# (1)
+```{r}
+cat("Total number of players: ", nrow(df), "\n")
+
+pos_summary <- df %>%
+  group_by(PriPos) %>%
+  summarise(
+    Count = n(), 
+    Median_AtBats = median(AtBats)
+  )
+
+print(pos_summary)
+```
+
+# (2)
+```{r}
+ggplot(df, aes(x = reorder(PriPos, AtBats, FUN = median), y = AtBats)) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(
+    title = "Distribution of At-Bats by Primary Position",
+    x = "Primary Position",
+    y = "Number of At-Bats"
+  ) +
+  theme_minimal()
+```
+
+# (3)
+```{r}
+positions_factor <- as.factor(df$PriPos)
+position_index <- as.numeric(positions_factor)
+
+stan_data <- list(
+  N = nrow(df),
+  C = length(unique(position_index)),
+  pos = position_index,
+  hits = df$Hits,
+  at_bats = df$AtBats
+)
+```
+
+
+# (4)
+```{r}
+stan_code <- "
+data {
+  int<lower=1> N; 
+  int<lower=1> C; 
+  array[N] int<lower=1, upper=C> pos; 
+  array[N] int<lower=0> hits;     
+  array[N] int<lower=0> at_bats;     
+}
+
+parameters {
+  real<lower=0, upper=1> omega;
+  real<lower=0> kappa_minus_2;
+
+  vector<lower=0, upper=1>[C] omega_c;
+  vector<lower=0>[C] kappa_c_minus_2;
+
+  vector<lower=0, upper=1>[N] theta;
+}
+
+transformed parameters {
+  real kappa = kappa_minus_2 + 2;
+  vector[C] kappa_c = kappa_c_minus_2 + 2;
+}
+
+model {
+  omega ~ beta(1, 1);
+  kappa_minus_2 ~ gamma(0.01, 0.01);
+
+  omega_c ~ beta(omega * (kappa - 2) + 1, (1 - omega) * (kappa - 2) + 1);
+  kappa_c_minus_2 ~ gamma(0.01, 0.01);
+
+  for (s in 1:N) {
+    theta[s] ~ beta(omega_c[pos[s]] * (kappa_c[pos[s]] - 2) + 1,
+                    (1 - omega_c[pos[s]]) * (kappa_c[pos[s]] - 2) + 1);
+  }
+
+  hits ~ binomial(at_bats, theta);
+}"
+```
+
+# (5)
+```{r}
+fit <- stan(
+  model_code = stan_code,
+  data = stan_data,
+  iter = 2500, 
+  chains = 4, 
+  seed = 451
+)
+
+fit_summary <- summary(fit)$summary
+
+theta_rows <- grep("^theta", rownames(fit_summary))
+theta_ess <- fit_summary[theta_rows, "n_eff"]
+min_ess_theta <- min(theta_ess)
+
+cat("Minimum ESS for theta parameters: ", min_ess_theta, "\n")
+```
+
+
+
+# (6)
+```{r}
+total_current_iters <- 4 * 2500 / 2 
+required_iters <- total_current_iters * (10000 / min_ess_theta)
+cat("Estimated iterations needed for ESS >= 10,000: ", required_iters, "\n")
+```
+
+
+# (7)
+```{r}
+theta_summary <- fit_summary[theta_rows, c("mean", "sd", "2.5%", "97.5%")]
+head(theta_summary)
+```
+
+# (8)
+```{r}
+pairs(fit, pars = c("omega", "kappa", "omega_c[1]", "kappa_c[1]"))
+```
+
+# (9)
+```{r}
+posterior_samples <- rstan::extract(fit)
+theta_abad <- posterior_samples$theta[, 1]
+theta_altuve <- posterior_samples$theta[, 10]
+
+diff_players <- theta_altuve - theta_abad
+
+cat("Mean difference in batting ability (Altuve - Abad): ", mean(diff_players), "\n")
+cat("95% Credible Interval: ", quantile(diff_players, c(0.025, 0.975)), "\n")
+```
+
+# (10)
+```{r}
+levels(positions_factor) 
+idx_pitcher <- 7 
+idx_2ndbase <- 2
+
+omega_pitcher <- posterior_samples$omega_c[, idx_pitcher]
+omega_2ndbase <- posterior_samples$omega_c[, idx_2ndbase]
+
+diff_positions <- omega_2ndbase - omega_pitcher
+cat("Mean diff in position batting ability (2nd Base - Pitcher): ", mean(diff_positions), "\n")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

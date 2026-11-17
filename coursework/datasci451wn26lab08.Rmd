@@ -1,0 +1,300 @@
+---
+title: "**Lab 8: Hierarchical models**"
+author: "**DATASCI 451**"
+date: "**March 13th, 2026**"
+output:
+  pdf_document:
+    toc: yes
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "80%", fig.align = 'center',
+                      warning = FALSE, message = FALSE)
+```
+
+\newpage
+
+
+
+# Logistics
+
+- Homework 5 is due Today, March 13th at 6pm
+
+
+
+# Reference material
+
+- Bayesian Data Analysis chapter 5
+- Doing Bayesian Data Analysis chapter 9
+
+
+
+# Plan for today
+
+- Normal model with exchangeable parameters (eight schools example)
+- Derive the posterior and sample from it with our own MCMC code
+- Some Midterm 2 Review
+
+
+
+
+
+\newpage
+
+# Example: Parallel experiments in eight schools
+
+This example is based on sections 5.4 and 5.5 of Bayesian Data Analysis.
+
+## Part 1: Deriving the posterior
+
+A study was performed for the Educational Testing Service to analyze the effects of special coaching programs on test scores. Separate randomized experiments were performed to estimate the effects of coaching programs for the SAT-V (Scholastic Aptitude Test - Verbal) in each of eight high schools. The outcome variable in each study was the score on a special administration of the SAT-V, a standardized multiple choice test administered by the Educational Testing Service and used to help colleges make admissions decisions; the scores can vary between 200 and 800, with mean about 500 and standard deviation about 100. The SAT examinations are designed to be resistant to short-term efforts directed specifically toward improving performance on the test; instead they are designed to reflect knowledge acquired and abilities developed over many years of education. Nevertheless, each of the eight schools in this study considered its short-term coaching program to be successful at increasing SAT scores. Also, there was no prior reason to believe that any of the eight programs was more effective than any other or that some were more similar in effect to each other than to any other.
+
+All students in the experiments had already taken the PSAT (Preliminary SAT), and allowance was made for differences in the PSAT-M (Mathematics) and PSAT-V test scores between coached and uncoached students. In particular, in each school the estimated coaching effect and its standard error were obtained by an analysis of covariance adjustment (that is, a linear regression was performed of SAT-V on treatment group, using PSAT-M and PSAT-V as control variables) appropriate for a completely randomized experiment. A separate regression was estimated for each school. The estimates $y_j$ are obtained by independent experiments and have approximately normal sampling distributions with sampling variances that are known, for all practical purposes, because the sample sizes in all of the eight experiments were relatively large, over thirty students in each school (recall the discussion of data reduction in Section 4.1).
+
+The results of the experiments are summarized in the following table:
+
+| School | Estimated treatment effect, $y_j$ | Standard error of effect estimate, $\sigma_j$ |
+|--------|-----------------------------------|-----------------------------------------------|
+| 1      | 28                                | 15                                            |
+| 2      | 8                                 | 10                                            |
+| 3      | -3                                | 16                                            |
+| 4      | 7                                 | 11                                            |
+| 5      | -1                                | 9                                             |
+| 6      | 1                                 | 11                                            |
+| 7      | 18                                | 10                                            |
+| 8      | 12                                | 18                                            |
+
+
+
+\newpage
+
+\underline{Likelihood}
+
+We are told that "the estimates $y_j$ are obtained by independent experiments and have approximately normal sampling distributions with sampling variances that are known", so we have
+$$
+y_j \mid \theta_j \sim \mathcal{N}(\theta_j, \sigma_j^2)
+$$
+and
+$$
+p(y_{1:8} \mid \theta_{1:8}) = \prod_{j=1}^8 p(y_j \mid \theta_j) = \prod_{j=1}^8 \mathcal{N}(y_j; \theta_j, \sigma_j^2).
+$$
+
+We assume that $\sigma_j^2$ is known for $j \in \{1,...,8\}$.
+
+
+
+\vspace{1cm}
+
+\underline{Prior:}
+
+We assume that
+$$
+\theta_1,...,\theta_8 \mid \mu, \tau \overset{\text{iid}}{\sim} \mathcal{N}(\mu, \tau^2),
+$$
+where $\mu$ and $\tau$ are hyperparameters
+$$
+p(\mu,\tau) = p(\mu \mid \tau)p(\tau).
+$$
+
+So we have
+$$
+p(\theta_{1:8} \mid \mu, \tau) = \prod_{j=1}^8 p(\theta_j \mid \mu, \tau) = \prod_{j=1}^8 \mathcal{N}(\theta_j; \mu, \tau^2)
+$$
+
+And we'll use an uninformative prior for the hyperparameters, i.e.,
+$$
+p(\mu,\tau) \propto 1.
+$$
+
+
+
+\vspace{1cm}
+
+**Derive the conditional posterior of $\theta_{1:8}$ given $\mu$ and $\tau$.**
+
+$$
+\begin{aligned}
+p(\theta_{1:8} \mid y_{1:8}, \mu, \tau) &= \frac{p(\theta_{1:8} \mid \mu, \tau) p(y_{1:8} \mid \theta_{1:8}, \mu, \tau)}{p(y_{1:8}, \mu, \tau)} \\
+&\propto p(\theta_{1:8} \mid \mu, \tau) p(y_{1:8} \mid \theta_{1:8}, \mu, \tau) \\
+&= \prod_{j=1}^8 \mathcal{N}(\theta_j; \mu, \tau^2) \prod_{j=1}^8 \mathcal{N}(y_j; \theta_j, \sigma_j^2) \\
+&= \prod_{j=1}^8 \mathcal{N}(\theta_j; \mu, \tau^2) \mathcal{N}(y_j; \theta_j, \sigma_j^2) \\
+&= \ldots (\text{try to combine these two Gaussian pdfs!}) \\
+&= \prod_{j=1}^8 \mathcal{N}\biggl(\theta_j; \frac{\mu \sigma_j^2 + y_j \tau^2}{\sigma_j^2 + \tau^2}, \frac{\sigma_j^2 \tau^2}{\sigma_j^2 + \tau^2}\biggr),
+\end{aligned}
+$$
+so for all $j \in \{1,...,8\}$,
+$$
+\theta_j \mid y_j, \mu, \tau \sim \mathcal{N}\biggl(\frac{\mu \sigma_j^2 + y_j \tau^2}{\sigma_j^2 + \tau^2}, \frac{\sigma_j^2 \tau^2}{\sigma_j^2 + \tau^2}\biggr)
+$$
+
+
+
+\newpage
+
+**Derive the marginal posterior distribution of $\mu$ and $\tau$.**
+
+$$
+\begin{aligned}
+p(\mu, \tau \mid y_{1:8}) &= \frac{p(\mu, \tau) p(y_{1:8} \mid \mu, \tau)}{p(y_{1:8})} \\
+&\propto p(\mu, \tau) p(y_{1:8} \mid \mu, \tau) \\
+&= 1 \prod_{j=1}^8 p(y_j \mid \mu, \tau) \\
+&= \prod_{j=1}^8 \int p(y_j \mid \theta_j, \mu, \tau) p(\theta_j \mid \mu, \tau) d\theta_j \\
+&= \prod_{j=1}^8 \int \mathcal{N}(y_j; \theta_j, \sigma_j^2) \mathcal{N}(\theta_j; \mu, \tau^2) d\theta_j \\
+&= \ldots (\text{try to solve this integral!}) \\
+&= \prod_{j=1}^8 \mathcal{N}(y_j; \mu, \sigma_j^2 + \tau^2),
+\end{aligned}
+$$
+and therefore
+$$
+\log p(\mu, \tau \mid y_{1:8}) = \sum_{j=1}^8 \log \mathcal{N}(y_j; \mu, \sigma_j^2 + \tau^2).
+$$
+
+
+
+\vspace{1cm}
+
+## Part 2: Sampling with MCMC
+
+**Use the Metropolis algorithm to generate 50,000 samples of the hyperparameters $(\mu,\tau)$ from $p(\mu, \tau \mid y_{1:8})$.**
+
+We store the two columns of the above table as vectors:
+```{r}
+y <- c(28, 8, -3, 7, -1, 1, 18, 12)
+sigma <- c(15, 10, 16, 11, 9, 11, 10, 18)
+```
+
+And we define a function to compute $\log p(\mu, \tau \mid y_{1:8})$ for any $(\mu,\tau)$. An easy way to do this is to use the `dnorm` function with argument `log=TRUE`:
+```{r}
+logposterior <- function(mu, tau, y, sigma) {
+  if (tau <= 0) {
+    return(-Inf)
+  }
+  return(sum(dnorm(y, mean = mu, sd = sqrt(sigma^2 + tau^2), log = TRUE)))
+}
+```
+
+We can use similar code as previous labs to run the Metropolis algorithm, we just need to use `logposterior()` when we compute the acceptance probability instead of using separate functions for the log-prior and log-likelihood. Note that we define $\lambda := (\mu,\tau)$ for convenience.
+```{r}
+runMCMC <- function(num_iters, num_burnin, logposterior, y, sigma,
+                    proposal_sd, initial_lambda) {
+  # Create empty vector to store lambda and initialize it
+  lambda <- matrix(0, nrow = num_iters, ncol = 2)
+  lambda[1,] <- initial_lambda
+  
+  # Create empty vector to store accept/reject indicator
+  # (we'll use this later to compute the acceptance rate of our proposals)
+  accept <- numeric(num_iters)
+  
+  for (t in 2:num_iters) {
+    # Propose new lambda
+    proposed_lambda <- rnorm(2, lambda[t-1,], proposal_sd)
+    
+    # Compute acceptance probability and accept/reject
+    lognumerator <- logposterior(proposed_lambda[1], proposed_lambda[2], y, sigma)
+    logdenominator <- logposterior(lambda[t-1,1], lambda[t-1,2], y, sigma)
+    logacceptprob <- lognumerator - logdenominator
+    accept[t] <- log(runif(1)) < logacceptprob
+    
+    # Keep proposed lambda if accept, keep previous lambda if reject
+    lambda[t,] <- proposed_lambda * accept[t] + lambda[t-1,] * (1 - accept[t])
+  }
+  
+  lambda <- lambda[-c(1:num_burnin),]
+  accept <- accept[-c(1:num_burnin)]
+  
+  return(list(lambda = lambda, accept = accept))
+}
+```
+
+We run the algorithm for 50,000 iterations after an initial 1,000 warm-up samples. We tune `proposal_sd` so that we accept around 20%-25% of our proposals.
+```{r}
+set.seed(451)
+
+results <- runMCMC(num_iters = 50000 + 1000, num_burnin = 1000,
+                   logposterior, y, sigma,
+                   proposal_sd = c(10,10), initial_lambda = c(0,1))
+
+mean(results$accept)
+```
+
+Based on trace plots, it looks like the chain has converged:
+```{r}
+par(mfrow = c(1,2))
+plot(results$lambda[1:5000,1], type = "l", ylab = "mu")
+plot(results$lambda[1:5000,2], type = "l", ylab = "tau")
+```
+
+And autocorrelation is not too severe, so we decide not to thin our samples:
+```{r}
+par(mfrow = c(1,2))
+acf(results$lambda[,1], main = "")
+acf(results$lambda[,2], main = "")
+```
+
+Finally, we can look at density plots of our samples:
+```{r}
+plot(results$lambda, pch = 19, xlab = "mu", ylab = "tau")
+par(mfrow = c(1,2))
+hist(results$lambda[,1], breaks = 100, main = "", xlab = "mu", probability = TRUE)
+hist(results$lambda[,2], breaks = 100, main = "", xlab = "tau", probability = TRUE)
+```
+
+
+
+\newpage
+
+**Given the samples of $(\mu,\tau)$ from $p(\mu,\tau \mid y_{1:8})$, generate samples of $\theta_{1:8}$ from $p(\theta_{1:8} \mid y_{1:8})$.**
+
+Earlier we showed that
+$$
+\theta_j \mid y_j, \mu, \tau \sim \mathcal{N}\biggl(\frac{\mu \sigma_j^2 + y_j \tau^2}{\sigma_j^2 + \tau^2}, \frac{\sigma_j^2 \tau^2}{\sigma_j^2 + \tau^2}\biggr),
+$$
+so given a sample $(\mu,\tau)_i$ ($i \in \{1,...,50,000\}$), we can sample $\theta_j$ for all $j \in \{1,...,8\}$.
+
+Here's one way to do this. You might have figured out a different way when you were working on homework 7.
+```{r}
+library(tidyverse)
+
+mu <- results$lambda[,1]
+tau <- results$lambda[,2]
+
+num_samples <- length(mu)
+df <- tibble(school = as.factor(rep(1:8, each = num_samples)),
+             mu = rep(mu, times = 8),
+             tau = rep(tau, times = 8),
+             y = rep(y, each = num_samples),
+             sigma = rep(sigma, each = num_samples)) %>%
+        mutate(theta = map2_dbl((mu*sigma^2 + y*tau^2) / (sigma^2 + tau^2),
+                                sqrt((sigma^2)*(tau^2)/(sigma^2 + tau^2)),
+                                ~ rnorm(1, .x, .y)))
+```
+
+We can summarize our samples $\theta_j$ for each school:
+```{r}
+df %>%
+  group_by(school) %>%
+  summarize(mean = mean(theta),
+            sd = sd(theta),
+            q10 = quantile(theta, 0.1),
+            median = median(theta),
+            q90 = quantile(theta, 0.9))
+```
+
+And we can also plot a histogram for each school. Before we move on, quickly remind yourself what $\theta_j$ is in the context of the problem.
+```{r}
+df %>%
+  ggplot() +
+    geom_histogram(aes(x = theta, y = after_stat(density)), fill = "palegreen4", bins = 100) +
+    facet_wrap(~school) +
+    geom_vline(aes(xintercept=0), linetype = "dashed") +
+    labs(x = "theta", y = "p(theta | y)") +
+    theme_classic()
+```
+
+
+
+
+
+
+
